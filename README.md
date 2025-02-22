@@ -21,7 +21,7 @@ This repository contains a **quantitative trading framework** designed to identi
 
 1️⃣ **Define an Event:**
 
-- A day is an **event day** if: ✅ Mentions **spike** above a rolling average (`mention_window` & `mention_z`). ✅ The stock price **increases by at least **``**%**.
+- A day is an **event day** if: ✅ Mentions **spike** above a rolling average (`mention_window` & `mention_z`). ✅ The stock price **increases by at least **X**%**.
 
 2️⃣ **Test Different Hyperparameters:**
 
