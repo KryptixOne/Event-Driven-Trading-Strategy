@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from preproc.preproc import clean_data, eda
 from utils.plotting import plot_signals_on_market_data, plot_training_curves
 from utils.utils import save_scaled_data
-
+import numpy as np
 
 def run_weekly_model(df):
     # Step A: Generate weekly labels
@@ -83,7 +83,7 @@ def create_signals(df,
                    dropout=0.3,
                    lr=1e-4,
                    lookback_days=252,
-                   save_data=True
+                   save_data=False
                    ):
     """
     Main function that:
@@ -102,21 +102,30 @@ def create_signals(df,
     # 2. Scale features
     feature_cols = ['Mentions', 'Volume', 'Open Price', 'Close Price', 'Mentions_Change']
 
-    df_train, df_val, df_test = scale_features_parallel(df_train, df_val, df_test,
-                                                                 feature_cols,
-                                                                 lookback_days=lookback_days,
-                                                                 num_workers=8)
+    #df_train, df_val, df_test = scale_features_parallel(df_train, df_val, df_test,
+    #                                                            feature_cols,
+    #                                                             lookback_days=lookback_days,
+    #                                                             num_workers=8)
+    df_train, df_val, df_test, _ = scale_features(df_train, df_val, df_test, feature_cols)
     if save_data:
         save_scaled_data(df_train, df_val, df_test, save_dir="./data/scaled_data")
     # -----------------------------------------
     # 3. Create PyTorch Datasets & Loaders
     seq_length = 20
 
-    train_dataset = FinancialDataset(df_train, feature_cols=feature_cols, label_col='Return', seq_length=seq_length)
-    val_dataset = FinancialDataset(df_val, feature_cols=feature_cols, label_col='Return', seq_length=seq_length)
-    test_dataset = FinancialDataset(df_test, feature_cols=feature_cols, label_col='Return', seq_length=seq_length)
+    train_dataset = FinancialDataset(df_train, feature_cols=feature_cols,
+                                     label_col='Return', seq_length=seq_length,
+                                     return_indices=False)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_dataset = FinancialDataset(df_val, feature_cols=feature_cols,
+                                   label_col='Return', seq_length=seq_length,
+                                   return_indices=False)
+
+    test_dataset = FinancialDataset(df_test, feature_cols=feature_cols,
+                                    label_col='Return', seq_length=seq_length,
+                                    return_indices=True)
+
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
@@ -135,7 +144,7 @@ def create_signals(df,
 
     trained_model, train_losses, val_losses, val_accuracies = train_model(
         model, train_loader, val_loader,
-        epochs=10, lr=lr, device=device, save_path="../checkpoints/best_model.pth"
+        epochs=1, lr=lr, device=device, save_path="../checkpoints/best_model.pth"
     )
     # -----------------------------------------
     # 5. Generate Buy/Sell Signals on Test Set
@@ -143,34 +152,40 @@ def create_signals(df,
     model.to(device)
 
     # We need to reconstruct the test data indices so we can store predictions
+
     test_signals = []
     test_labels = []
-    indices = []
+    all_indices = []
 
     with torch.no_grad():
-        idx_counter = 0
-        for X_batch, y_batch in test_loader:
-            # Because our dataset uses idx => we can track the mapping
-            # But here let's keep it simple:
+        for X_batch, y_batch, idx_batch in test_loader:
             X_batch = X_batch.to(device)
             logits = model(X_batch)
+
             preds = torch.argmax(logits, dim=1).cpu().numpy()
+            y_true = y_batch.numpy()
+            row_ids = idx_batch.numpy()  # original DataFrame indices
 
             test_signals.extend(preds)
-            test_labels.extend(y_batch.numpy())
-            indices.append(idx_counter)
-            idx_counter += 1
+            test_labels.extend(y_true)
+            all_indices.extend(row_ids)
 
-    # The test_dataset has length = total_rows_in_test - seq_length
-    # We'll add the signals to the last portion of df_test
-    df_test_signals = df_test.iloc[seq_length:].copy()
-    df_test_signals['Predicted'] = test_signals
-    df_test_signals['ActualLabel'] = test_labels
+    df_test_signals = df_test.copy()
 
-    # Buy signal if Predicted=1, Sell/No-Buy if Predicted=0
-    df_test_signals['Signal'] = df_test_signals['Predicted'].apply(lambda x: 'BUY' if x == 1 else 'SELL')
+    df_test_signals['Predicted'] = np.nan
+    df_test_signals['ActualLabel'] = np.nan
 
-    return df_test_signals, train_losses, val_losses, val_accuracies
+    # 2) Assign predictions by index
+    df_test_signals.loc[all_indices, 'Predicted'] = test_signals
+    df_test_signals.loc[all_indices, 'ActualLabel'] = test_labels
+
+    # 3) Create a buy/sell column
+    df_test_signals['Signal'] = df_test_signals['Predicted'].apply(
+        lambda x: 'BUY' if x == 1 else ('SELL' if x == 0 else np.nan)
+    )
+
+    return df_test_signals,train_losses, val_losses, val_accuracies
+
 
 
 if __name__ == "__main__":
@@ -194,6 +209,7 @@ if __name__ == "__main__":
     print(f'Cleaning..')
     df_all = clean_data(df_all)
     df_all = eda(df_all)
+    df_all = df_all.dropna(subset=['Volume'])
     print(f'Data in form of {df_all.head(5)}')
     print('checking for nans')
     print(df_all.isna().sum())  # Check for NaNs in dataset
@@ -202,7 +218,7 @@ if __name__ == "__main__":
         print('running single day')
         df_signals, train_losses, val_losses, val_accuracies = create_signals(df_all,
                                                                               hidden_dim=128,
-                                                                              num_layers=10,
+                                                                              num_layers=2,
                                                                               dropout=0.3,
                                                                               lr=1e-4,
                                                                               lookback_days=180

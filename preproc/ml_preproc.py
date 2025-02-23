@@ -1,4 +1,4 @@
-
+import multiprocessing
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import numpy as np
@@ -75,6 +75,72 @@ def split_data_by_date(df,
     df_test = df[df['Date'] > val_end]
 
     return df_train, df_val, df_test
+
+
+
+
+
+def scale_ticker_data(ticker_data, feature_cols, lookback_days):
+    """
+    Scales data for a single ticker using a rolling window.
+
+    Parameters:
+    - ticker_data: DataFrame containing a single ticker's data.
+    - feature_cols: List of feature columns to scale.
+    - lookback_days: Number of past days to use for scaling.
+
+    Returns:
+    - Scaled ticker DataFrame
+    """
+    ticker_data = ticker_data.sort_values("Date")  # Ensure time ordering
+
+    # Store results
+    scaled_values = np.zeros_like(ticker_data[feature_cols].values)
+
+    for i in range(len(ticker_data)):
+        # Get past lookback window
+        start_idx = max(0, i - lookback_days)
+        past_data = ticker_data.iloc[start_idx:i]
+
+        if len(past_data) > 10:  # Ensure enough data
+            scaler = StandardScaler()
+            scaler.fit(past_data[feature_cols])  # Fit on past `lookback_days`
+            scaled_values[i] = scaler.transform(ticker_data.iloc[[i]][feature_cols])
+        else:
+            scaled_values[i] = np.nan  # If not enough data, mark as NaN
+
+    ticker_data.loc[:, feature_cols] = scaled_values  # Update scaled values
+    return ticker_data.dropna()  # Remove NaN rows
+
+def scale_features_parallel(df_train, df_val, df_test, feature_cols, lookback_days=252, num_workers=4):
+    """
+    Scales features for each ticker separately using a rolling lookback window with parallel processing.
+
+    - Training, validation, and test sets are all scaled using **only past data**.
+    - Prevents data leakage while keeping scaling **realistic for trading**.
+    - Uses multiprocessing for faster execution.
+
+    Returns: Scaled df_train, df_val, df_test
+    """
+    df_train_scaled = df_train.copy()
+    df_val_scaled = df_val.copy()
+    df_test_scaled = df_test.copy()
+
+    tickers = df_train['Ticker'].unique()
+
+    # Use multiprocessing to scale multiple tickers in parallel
+    with multiprocessing.Pool(num_workers) as pool:
+        train_results = pool.starmap(scale_ticker_data, [(df_train[df_train['Ticker'] == t], feature_cols, lookback_days) for t in tickers])
+        val_results = pool.starmap(scale_ticker_data, [(df_val[df_val['Ticker'] == t], feature_cols, lookback_days) for t in tickers])
+        test_results = pool.starmap(scale_ticker_data, [(df_test[df_test['Ticker'] == t], feature_cols, lookback_days) for t in tickers])
+
+    # Combine results
+    df_train_scaled = pd.concat(train_results)
+    df_val_scaled = pd.concat(val_results)
+    df_test_scaled = pd.concat(test_results)
+
+    return df_train_scaled, df_val_scaled, df_test_scaled
+
 
 
 def scale_features_per_ticker_with_lookback_complete(df_train, df_val, df_test, feature_cols, lookback_days=252):

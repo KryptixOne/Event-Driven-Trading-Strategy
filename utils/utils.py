@@ -2,7 +2,7 @@ import os
 import pandas as pd
 def save_scaled_data(df_train, df_val, df_test, save_dir="scaled_data"):
     """
-    Saves the scaled datasets to disk as Parquet files.
+    Saves the scaled datasets to disk as csv files.
 
     Parameters:
     - df_train, df_val, df_test: Scaled DataFrames
@@ -10,9 +10,9 @@ def save_scaled_data(df_train, df_val, df_test, save_dir="scaled_data"):
     """
     os.makedirs(save_dir, exist_ok=True)  # Create directory if it doesn't exist
 
-    df_train.to_parquet(f"{save_dir}/train_scaled.parquet", index=False)
-    df_val.to_parquet(f"{save_dir}/val_scaled.parquet", index=False)
-    df_test.to_parquet(f"{save_dir}/test_scaled.parquet", index=False)
+    df_train.to_csv(f"{save_dir}/train_scaled.csv", index=False)
+    df_val.to_csv(f"{save_dir}/val_scaled.csv", index=False)
+    df_test.to_csv(f"{save_dir}/test_scaled.parquet", index=False)
 
     print(f"✅ Scaled datasets saved in '{save_dir}'")
 

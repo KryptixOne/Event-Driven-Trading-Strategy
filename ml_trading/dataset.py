@@ -1,51 +1,48 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
-import torch
-from torch.utils.data import Dataset
 import numpy as np
 
 
 class FinancialDataset(Dataset):
-    def __init__(self, df, feature_cols, label_col='Return', seq_length=20):
-        """
-        Creates a dataset ensuring that each sequence only contains data from the same ticker.
-
-        df: DataFrame with all data (assumed time-sorted by date).
-        feature_cols: list of feature column names.
-        label_col: name of the column with daily returns or next-day returns.
-        seq_length: number of past days to include in each sample (window size).
-        """
+    def __init__(self, df, feature_cols, label_col='Return', seq_length=20, return_indices=False):
         self.seq_length = seq_length
         self.feature_cols = feature_cols
+        self.return_indices = return_indices
         self.sequences = []
 
-        # Compute labels per ticker
-        df['Label'] = df.groupby('Ticker')[label_col].shift(-1) > 0  # Binary label (1 for up, 0 for down)
-        df['Label'] = df['Label'].astype(int)  # Convert True/False to 1/0
-
-        # Drop rows where we cannot get a label
+        df['Label'] = df.groupby('Ticker')[label_col].shift(-1) > 0
+        df['Label'] = df['Label'].astype(int)
         df = df.dropna(subset=['Label'])
 
-        # Store sequences separately for each stock
         for ticker, group in df.groupby('Ticker'):
-            group = group.sort_values('Date')  # Ensure time order within each stock
-
+            group = group.sort_values('Date')
             X = group[feature_cols].values
             y = group['Label'].values
+            idx_arr = group.index.values  # store the original row indices
 
-            # Create rolling sequences per stock
             for i in range(len(group) - seq_length):
-                self.sequences.append((X[i:i + seq_length], y[i + seq_length - 1]))
-
-        print(f"Total Sequences Created: {len(self.sequences)}")  # Debugging output
+                seq_X = X[i:i + seq_length]
+                seq_y = y[i + seq_length - 1]
+                # only save row index if return_indices=True
+                row_idx = idx_arr[i + seq_length - 1] if self.return_indices else None
+                self.sequences.append((seq_X, seq_y, row_idx))
 
     def __len__(self):
         return len(self.sequences)
 
     def __getitem__(self, idx):
-        X_seq, y_label = self.sequences[idx]
-        return torch.tensor(X_seq, dtype=torch.float32), torch.tensor(y_label, dtype=torch.long)
-
+        X_seq, y_label, row_idx = self.sequences[idx]
+        if self.return_indices:
+            return (
+                torch.tensor(X_seq, dtype=torch.float32),
+                torch.tensor(y_label, dtype=torch.long),
+                row_idx
+            )
+        else:
+            return (
+                torch.tensor(X_seq, dtype=torch.float32),
+                torch.tensor(y_label, dtype=torch.long)
+            )
 
 class FinancialWeeklyDataset(Dataset):
     def __init__(self, df, feature_cols, seq_length=20):
