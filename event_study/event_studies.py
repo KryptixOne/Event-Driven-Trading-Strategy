@@ -5,6 +5,7 @@ import numpy as np
 from scipy.stats import ttest_ind
 from matplotlib import pyplot as plt
 
+
 def mention_spike_event_study(df,
                               ticker="AAPL",
                               mention_window=30,
@@ -327,9 +328,26 @@ def hyperparam_search(df,
         horizon_cols = [c for c in df_res.columns if c.endswith('_mean_diff')]
         df_res['score'] = df_res[horizon_cols].mean(axis=1)  # higher is better
         df_res.sort_values('score', ascending=False, inplace=True)
+    elif significance_metric == 'profit_significance':
+        # 1) Compute average difference across horizons
+        diff_cols = [c for c in df_res.columns if c.endswith('_mean_diff')]
+        df_res['avg_diff'] = df_res[diff_cols].mean(axis=1)
+
+        # 2) Compute average p-value across horizons
+        pval_cols = [c for c in df_res.columns if c.endswith('_p_val')]
+        df_res['avg_pval'] = df_res[pval_cols].mean(axis=1)
+
+        # 3) Combine into a ratio (higher is better)
+        eps = 1e-6
+        # If avg_pval is extremely small, the ratio becomes huge => indicates strong significance + big effect
+        df_res['score'] = df_res['avg_diff'] / (df_res['avg_pval'] + eps)
+
+        # Sort descending: bigger ratio is better
+        df_res.sort_values('score', ascending=False, inplace=True)
 
     # Return the entire DataFrame, best at top
     return df_res
+
 
 
 if __name__ == '__main__':
@@ -337,12 +355,12 @@ if __name__ == '__main__':
     data = pd.read_csv(path_to_data)
     df = pd.DataFrame(data)
     df = clean_data(df)
-    eda(df)
+    df = eda(df)
     df = feat_eng(df)
 
     mention_window_list = [5, 10, 20, 30, 60, 180]  # you could add 40, 50, etc.
     mention_z_list = [2, 3, 4]
-    price_up_min_list = [0, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05]  # e.g., 0 means >0, 0.01 means >1% daily up
+    price_up_min_list = [0, 0.005, 0.01, 0.015, 0.02]  # e.g., 0 means >0, 0.01 means >1% daily up
 
     df_search_results = hyperparam_search(
         df=df,
@@ -351,7 +369,7 @@ if __name__ == '__main__':
         mention_z_list=mention_z_list,
         price_up_min_list=price_up_min_list,
         horizon_list=[1, 5, 10, 20, 30, 40],  # e.g., we can try these horizons
-        significance_metric='avg_diff'  # or 'count_sig' or 'avg_diff'
+        significance_metric='profit_significance'  # or 'count_sig' or 'avg_diff'
     )
 
     print(df_search_results.head(10))

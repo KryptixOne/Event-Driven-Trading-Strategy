@@ -38,10 +38,9 @@ def eda(df):
     df = df.dropna(subset=['Return', 'Mentions_Change'])
 
     # Quick correlation check (overall, across all tickers)
-    correlation = df[['Return', 'Mentions_Change']].corr().iloc[0, 1]
-    print(f"Overall correlation between daily return and mention change: {correlation:.4f}")
-
-    print()
+    #correlation = df[['Return', 'Mentions_Change']].corr().iloc[0, 1]
+    #print(f"Overall correlation between daily return and mention change: {correlation:.4f}")
+    return df
 
 
 def feat_eng(df):
