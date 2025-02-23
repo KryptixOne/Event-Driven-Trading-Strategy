@@ -2,6 +2,72 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
 
+import matplotlib.pyplot as plt
+
+
+
+def plot_training_curves(train_losses, val_losses, val_accuracies):
+    epochs = range(1, len(train_losses) + 1)
+
+    plt.figure(figsize=(12, 5))
+
+    # Plot Loss
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, train_losses, label="Train Loss", marker='o')
+    plt.plot(epochs, val_losses, label="Validation Loss", marker='o')
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Training & Validation Loss")
+    plt.legend()
+
+    # Plot Accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, val_accuracies, label="Validation Accuracy", marker='o', color='green')
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.title("Validation Accuracy")
+    plt.legend()
+
+    plt.show()
+
+def plot_signals_on_market_data(df_test_signals):
+    """
+    Plots the test set's market data (Close Price) and overlays buy/sell signals.
+
+    - Green triangles indicate buy signals.
+    - Red triangles indicate sell signals.
+
+    Parameters:
+    - df_test_signals: DataFrame containing test period with 'Date', 'Close Price', and 'Signal'
+    """
+    df_test_signals = df_test_signals.copy()
+    df_test_signals['Date'] = pd.to_datetime(df_test_signals['Date'])
+
+    plt.figure(figsize=(12, 6))
+
+    # Plot the closing price
+    plt.plot(df_test_signals['Date'], df_test_signals['Close Price'], label='Close Price', color='blue', linewidth=1)
+
+    # Find indices of Buy & Sell signals
+    buy_signals = df_test_signals[df_test_signals['Signal'] == 'BUY']
+    sell_signals = df_test_signals[df_test_signals['Signal'] == 'SELL']
+
+    # Plot Buy signals
+    plt.scatter(buy_signals['Date'], buy_signals['Close Price'],
+                color='green', marker='^', s=100, label='Buy Signal')
+
+    # Plot Sell signals
+    plt.scatter(sell_signals['Date'], sell_signals['Close Price'],
+                color='red', marker='v', s=100, label='Sell Signal')
+
+    # Labels & legend
+    plt.xlabel('Date')
+    plt.ylabel('Close Price')
+    plt.title('Buy/Sell Signals on Market Data')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
 
 def simple_plot(df, sample_ticker="AAPL"):
     # Let's assume 'df' is your full DataFrame
