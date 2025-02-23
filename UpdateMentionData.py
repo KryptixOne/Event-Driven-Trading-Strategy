@@ -228,11 +228,17 @@ def fill_missing_financial_data(merged_csv: str, yh_csv = None):
         "7 Day Change Volume",
     ]
 
-    df = pd.merge(
+    common_tickers = set(df["Ticker"]).intersection(set(hist_data["Ticker"]))
+
+    # 🔹 Step 2: Filter both datasets to keep only common tickers
+    df = df[df["Ticker"].isin(common_tickers)].copy()
+    hist_data = hist_data[hist_data["Ticker"].isin(common_tickers)].copy()
+
+    df_merged = pd.merge(
         df,
         hist_data[columns_to_merge],
         on=["Date", "Ticker"],
-        how="left",
+        how="outer",
         suffixes=("", "_hist"),
     )
 
@@ -248,13 +254,25 @@ def fill_missing_financial_data(merged_csv: str, yh_csv = None):
         "7 Day Change Volume",
     ]:
         hist_col = col + "_hist"
-        if hist_col in df.columns:
-            df[col] = df[col].fillna(df[hist_col])
-            df.drop(columns=[hist_col], inplace=True, errors="ignore")
+        if hist_col in df_merged.columns:
+            df_merged[col] = df_merged[col].fillna(df_merged[hist_col])
+            df_merged.drop(columns=[hist_col], inplace=True, errors="ignore")
+    df_merged = df_merged.dropna(subset=['Close Price'])
+    df_merged = df_merged.dropna(subset=['Volume'])
+    df_merged["Mentions"] = df_merged["Mentions"].fillna(0)
+
+    # Define your threshold
+    threshold = 800
+    row_counts = df_merged["Ticker"].value_counts()
+    # Get tickers with row counts >= threshold
+    tickers_to_keep = row_counts[row_counts >= threshold].index
+
+    # Filter df_merged to keep only those tickers
+    df_merged = df_merged[df_merged["Ticker"].isin(tickers_to_keep)]
 
     # 9) Save the updated CSV
-    df.sort_values(by=["Ticker", "Date"], inplace=True)
-    df.to_csv('final_csv.csv', index=False)
+    df_merged.sort_values(by=["Ticker", "Date"], inplace=True)
+    df_merged.to_csv('final_csv.csv', index=False)
     print(f"Missing financial data filled successfully in final_csv.csv!")
 
 
@@ -306,4 +324,4 @@ if __name__ == '__main__':
     # How to run
     #get_quiver_and_market_data(csv_file=csv_file_path)
     #merge_existing_data(existing_csv=csv_file_path, extra_excel=data_from_quiver)
-    #fill_missing_financial_data(merged_csv=merged_csv,yh_csv ="./data/after_yh.csv" )
+    fill_missing_financial_data(merged_csv=merged_csv,yh_csv ="./data/after_yh.csv" )
