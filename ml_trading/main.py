@@ -2,7 +2,7 @@ import torch
 import pandas as pd
 from ml_trading.dataset import FinancialDataset, FinancialWeeklyDataset
 from preproc.ml_preproc import split_data_by_date, scale_features, create_weekly_labels_and_split, \
-    split_data_by_explicit_dates, scale_features_per_ticker_with_lookback_complete
+    split_data_by_explicit_dates, scale_features_parallel
 from ml_trading.train import train_model
 from ml_trading.model import LSTMClassifier
 from torch.utils.data import DataLoader
@@ -102,9 +102,10 @@ def create_signals(df,
     # 2. Scale features
     feature_cols = ['Mentions', 'Volume', 'Open Price', 'Close Price', 'Mentions_Change']
 
-    df_train, df_val, df_test, scalers = scale_features_per_ticker_with_lookback_complete(df_train, df_val, df_test,
-                                                                                          feature_cols,
-                                                                                          lookback_days=lookback_days)
+    df_train, df_val, df_test = scale_features_parallel(df_train, df_val, df_test,
+                                                                 feature_cols,
+                                                                 lookback_days=lookback_days,
+                                                                 num_workers=8)
     if save_data:
         save_scaled_data(df_train, df_val, df_test, save_dir="./data/scaled_data")
     # -----------------------------------------
@@ -182,15 +183,19 @@ if __name__ == "__main__":
     # Suppose your DataFrame is called df_all
     print('loading data...')
     df_all = pd.read_csv(data_path)
+
+    df_all['Date'] = pd.to_datetime(df_all['Date'])  # Ensure Date is in datetime format
+    # Get the overall start and end dates of the dataset
+    start_date = df_all['Date'].min()
+    end_date = df_all['Date'].max()
+    # Calculate the number of entries per ticker
+    ticker_counts = df_all.groupby('Ticker').size().reset_index(name='Total Entries')
+
     print(f'Cleaning..')
     df_all = clean_data(df_all)
     df_all = eda(df_all)
     print(f'Data in form of {df_all.head(5)}')
     print('checking for nans')
-    print(df_all.isna().sum())  # Check for NaNs in dataset
-    # Find rows where Volume is NaN and drop
-    df_all = df_all.dropna(subset=['Volume'])
-    # check again NaN existence
     print(df_all.isna().sum())  # Check for NaNs in dataset
 
     if single_day_test:
