@@ -4,6 +4,8 @@
 
 This repository contains a **quantitative trading framework** designed to identify **profitable trading signals** based on **mention spikes** and **price momentum**. By systematically analyzing how unusual surges in social media mentions affect stock returns, this project aims to optimize **event-driven trading strategies**.
 
+Data available here: https://drive.google.com/drive/folders/1-npp29XExE_BhdrMnJKI1Glr_N8kU9Yh
+
 ## **🚀 Key Features**
 
 - **📊 Hyperparameter Optimization:**
