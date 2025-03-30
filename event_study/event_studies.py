@@ -364,7 +364,7 @@ if __name__ == '__main__':
 
     df_search_results = hyperparam_search(
         df=df,
-        ticker='AAPL',
+        ticker='RGTI',
         mention_window_list=mention_window_list,
         mention_z_list=mention_z_list,
         price_up_min_list=price_up_min_list,
