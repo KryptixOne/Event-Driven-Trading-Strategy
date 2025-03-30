@@ -2,53 +2,66 @@
 
 ## **Overview**
 
-This repository contains a **quantitative trading framework** designed to identify **profitable trading signals** based on **mention spikes** and **price momentum**. By systematically analyzing how unusual surges in social media mentions affect stock returns, this project aims to optimize **event-driven trading strategies**.
+This repository contains a **quantitative trading framework** designed to identify **profitable trading signals** based on **mention spikes**, **price momentum**, and now **classical indicators** like RSI, MACD, CVD, and Chaikin Oscillator. The framework supports **hyperparameter tuning**, **visual signal analysis**, and **backtesting** for **event-driven trading strategies**.
 
-Data available here: https://drive.google.com/drive/folders/1-npp29XExE_BhdrMnJKI1Glr_N8kU9Yh
+Data available here: [📂 Google Drive](https://drive.google.com/drive/folders/1-npp29XExE_BhdrMnJKI1Glr_N8kU9Yh)
+
+---
 
 ## **🚀 Key Features**
 
-- **📊 Hyperparameter Optimization:**
-  - Searches across different **mention window sizes**, **z-score thresholds**, and **minimum price increases** to define the best event signals.
-- **📈 Multi-Horizon Event Study:**
-  - Evaluates stock returns at **1, 5, 10, 20, 30, and 40-day** forward periods to measure short-term & long-term price reactions.
-- **📌 Statistical & Performance Metrics:**
-  - Computes **average return differences (**``**)**, **statistical significance (**``**)**, and **event count** to rank parameter sets.
-- **🔎 Signal Filtering for Trading:**
-  - Filters for the **strongest** mention-driven price movements with sustained effects to create a **momentum-based strategy**.
-- **📊 Data Visualization & Insights:**
-  - Generates **pretty tables & plots** to highlight the most effective event definitions.
+- **📊 Hyperparameter Optimization**
+- **📈 Multi-Horizon Event Study**
+- **📌 Statistical & Performance Metrics**
+- **🔎 Signal Filtering for Trading**
+- **🧠 Classical Technical Indicator Studies** (RSI, MACD, CVD, Chaikin)
+- **📊 Data Visualization & Insights**
+- **⏱️ Backtesting Interface** to simulate and visualize event signals
 
-## **🔬 How It Works**
+---
 
-1️⃣ **Define an Event:**
+## **🧠 New Additions**
 
-- A day is an **event day** if: ✅ Mentions **spike** above a rolling average (`mention_window` & `mention_z`). ✅ The stock price **increases by at least **X**%**.
+- 🔁 **Backtesting Framework**: Simulate event-based trades using `run_study.py` and `symbol_data.py`
+- 🧮 **Classical Trading Studies**: Add custom indicator studies to augment or replace mention-driven events
+- 🖼️ **Visual Signal Explorer**: Use `plot_fcn.py` to plot annotated trading signals
 
-2️⃣ **Test Different Hyperparameters:**
+### 🔍 Example Signal Output
 
-- Evaluates multiple `mention_window`, `mention_z`, and `price_up_min` values.
-- Measures **forward stock returns** after event days vs. non-event days.
+<p align="center">
+  <img src="docs/Example%20Signals%20and%20Indicators.png" alt="Example Signal Plot" width="700"/>
+</p>
 
-3️⃣ **Rank the Best Trading Signals:**
-
-- Finds the **most profitable** (`avg_diff`) and **statistically significant** (low `p-value`) parameter sets.
-
-## **💡 Key Use Cases**
-
-- **Algorithmic Trading**: Identify social sentiment-driven trading opportunities.
-- **Quantitative Research**: Understand how social media mentions influence stock prices.
-- **Backtesting & Strategy Development**: Use historical data to optimize trade execution timing.
+---
 
 ## **📂 Repository Structure**
 
+
+
 ```
-./data/                # Holds all datasets (QuiverQuant, Yahoo Finance, Mentions, etc.)
-./event_study/         # Event study functions, including hyperparameter search
+./data/                     # Datasets (QuiverQuant, Yahoo Finance, Mentions, etc.)
+./event_study/              # Event study logic and hyperparameter search
     ├── event_studies.py
-./preproc/             # Data preprocessing functions
-./utils/               # Utility functions for plotting and OLS regression
-./UpdateMentionData.py # Script to create & update data from QuiverQuant, Mentions, and Yahoo Finance
+./preproc/                  # Data preprocessing
+./utils/                    # Utility functions (plotting, stats)
+./UpdateMentionData.py      # Script to update data sources
+
+./backtesting/              # Backtesting framework
+    ├── plotting/
+        └── plot_fcn.py     # Signal plotting logic
+    ├── run_study.py        # Execute backtest on chosen signal definitions
+    └── symbol_data.py      # Symbol-level data abstraction
+
+./classical_trading/        # Classical technical studies
+    ├── custom_studies/
+        └── rsi_macd_cvd_chai_custom_study.py
+    └── indicators/
+        ├── base_indicators_tos.py
+        └── custom_indicators.py
+
+./docs/
+    └── Example Signals and Indicators.png
+
 ```
 
 ## **📌 Getting Started**
