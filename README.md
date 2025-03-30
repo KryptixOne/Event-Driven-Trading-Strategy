@@ -28,10 +28,7 @@ Data available here: [📂 Google Drive](https://drive.google.com/drive/folders/
 
 ### 🔍 Example Signal Output
 
-<p align="center">
-  <img src="docs/Example%20Signals%20and%20Indicators.png" alt="Example Signal Plot" width="700"/>
-</p>
-
+![Example Signal Plot](docs/Example%20Signals%20and%20Indicators.png)
 ---
 
 ## **📂 Repository Structure**
