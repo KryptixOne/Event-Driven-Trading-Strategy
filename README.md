@@ -32,7 +32,7 @@ Data available here: [📂 Google Drive](https://drive.google.com/drive/folders/
 
 
 ### Example Strategy 
-# Sharpe Ratio 2.75, Asset: Tesla, Entry Position: Long and Short Possible.
+#### Sharpe Ratio 2.75, Asset: Tesla, Entry Position: Long and Short Possible.
 ![Example Trading Strate](docs/sharperatio2_75_tesla.jpg)
 ---
 
