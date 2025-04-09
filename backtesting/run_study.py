@@ -9,7 +9,7 @@ from plotting.plot_fcn import plot_symbol_and_signals, plot_interactive, plot_in
 def main():
     # 1) Download data (15-minute bars, last 30 days) for a symbol
     print('Getting Data for TSLA')
-    df = get_symbol_data("TSLA", interval="5m", period="30d")
+    df = get_symbol_data("TSLA", interval="15m", period="30d")
     df.columns = df.columns.get_level_values(0)  # ['Open', 'High', ...]
 
 

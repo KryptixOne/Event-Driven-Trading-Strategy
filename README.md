@@ -29,6 +29,11 @@ Data available here: [📂 Google Drive](https://drive.google.com/drive/folders/
 ### 🔍 Example Signal Output
 
 ![Example Signal Plot](docs/Example%20Signals%20and%20Indicators.png)
+
+
+### Example Strategy 
+# Sharpe Ratio 2.75, Asset: Tesla, Entry Position: Long and Short Possible.
+![Example Trading Strate](docs/sharperatio2_75_tesla.jpg)
 ---
 
 ## **📂 Repository Structure**
@@ -55,6 +60,12 @@ Data available here: [📂 Google Drive](https://drive.google.com/drive/folders/
     └── indicators/
         ├── base_indicators_tos.py
         └── custom_indicators.py
+        
+./Parameter optimization on created study/        
+    ├── optimization/
+        └── run_optimization.py
+        └── strat_optimizer.py
+
 
 ./docs/
     └── Example Signals and Indicators.png
