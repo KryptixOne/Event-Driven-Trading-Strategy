@@ -53,6 +53,18 @@ def buy_sell_signals(df, sma_short_len=20, sma_long_len =50, rsi_len=14, macd_fa
     chaikin_val = chaikin_oscillator(df, chaikin_fast, chaikin_slow)
     cumdelta = cumulative_delta_volume(df)
 
+    # Define the warm-up period based on the largest lookback
+    warmup = max(sma_short_len, sma_long_len, rsi_len, macd_slow, macd_sig, chaikin_slow)
+
+    # Trim the dataframe to only include rows after warm-up
+    df = df.iloc[warmup:].copy()
+    sma_short = sma_short.iloc[warmup:]
+    sma_long = sma_long.iloc[warmup:]
+    rsi = rsi.iloc[warmup:]
+    macd_val = macd_val.iloc[warmup:]
+    macd_avg = macd_avg.iloc[warmup:]
+    chaikin_val = chaikin_val.iloc[warmup:]
+    cumdelta = cumdelta.iloc[warmup:]
 
     priceAboveSMAshort = df['Close'] > sma_short
     priceBelowSMAshort = df['Close'] < sma_short

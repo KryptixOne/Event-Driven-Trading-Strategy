@@ -5,13 +5,13 @@ import optuna
 
 
 class StrategyOptimizer:
-    def __init__(self, df, unit_size=100, initial_cash=100000):
+    def __init__(self, df,n_trials=1000, unit_size=100, initial_cash=100000):
         self.df = df.copy()
         self.unit_size = unit_size
         self.initial_cash = initial_cash
         self.signal_func = None
         self.cost_func = None
-        self.n_trials =1000
+        self.n_trials =n_trials
 
     def set_signal_function(self, func):
         self.signal_func = func
@@ -76,8 +76,14 @@ class StrategyOptimizer:
         entry_price = None
         peak_price = None  # track high-water mark for trailing stop
         print(position_mode)
-        for i in range(len(self.df)):
-            price = self.df['Close'].iloc[i]
+
+        n = min(len(self.df), len(buy_signal), len(sell_signal))
+        df = self.df.iloc[-n:]
+        buy_signal = buy_signal.iloc[-n:]
+        sell_signal = sell_signal.iloc[-n:]
+
+        for i in range(n):
+            price = df['Close'].iloc[i]
 
             # Trailing stop logic
             if position != 0 and entry_price is not None and trailing_stop_pct is not None:
@@ -127,8 +133,136 @@ class StrategyOptimizer:
             equity = cash + position * price
             equity_curve.append(equity)
 
-        return pd.Series(equity_curve, index=self.df.index)
+        return pd.Series(equity_curve, index=buy_signal.index)
 
+    def run_strategy_trailing_stop_with_trades(
+            self, buy_signal, sell_signal, trailing_stop_pct=None, position_mode='both'
+    ):
+        position = 0
+        cash = self.initial_cash
+        equity_curve = []
+        entry_price = None
+        peak_price = None  # track high-water mark for trailing stop
+        trade_log = []  # list of dicts to store each trade event
+
+        n = min(len(self.df), len(buy_signal), len(sell_signal))
+        df = self.df.iloc[-n:]
+        buy_signal = buy_signal.iloc[-n:]
+        sell_signal = sell_signal.iloc[-n:]
+
+        def record_trade(side, entry_price, exit_price, entry_ts, exit_ts):
+            """ Helper to append a trade to trade_log """
+            if side == 'LONG':
+                pnl = exit_price - entry_price
+            else:  # side == 'SHORT'
+                pnl = entry_price - exit_price
+            trade_log.append({
+                'side': side,
+                'entry_time': entry_ts,
+                'entry_price': entry_price,
+                'exit_time': exit_ts,
+                'exit_price': exit_price,
+                'pnl': pnl
+            })
+
+        entry_ts = None
+
+        for i in range(n):
+            ts = df.index[i]
+            price = df['Close'].iloc[i]
+
+            # TRAILING STOP LOGIC
+            if position != 0 and entry_price is not None and peak_price is not None and trailing_stop_pct is not None:
+                if position > 0:
+                    # Update peak if continuing long
+                    peak_price = max(peak_price, price)
+                    # If price drops below trailing threshold => exit
+                    if price <= peak_price * (1 - trailing_stop_pct):
+                        record_trade('LONG', entry_price, price, entry_ts, ts)
+                        cash += position * price
+                        position = 0
+                        entry_price = None
+                        peak_price = None
+
+                elif position < 0:
+                    # Update trough if continuing short
+                    peak_price = min(peak_price, price)
+                    # If price rises above trailing threshold => exit
+                    if price >= peak_price * (1 + trailing_stop_pct):
+                        record_trade('SHORT', entry_price, price, entry_ts, ts)
+                        cash += position * price
+                        position = 0
+                        entry_price = None
+                        peak_price = None
+
+            # SIGNAL-BASED ENTRY/FLIP
+            # BUY side
+            elif buy_signal.iloc[i] and position_mode in {'both', 'long_only'}:
+                if position == 0:
+                    # Enter new long
+                    position = self.unit_size
+                    cash -= self.unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+                elif position < 0:
+                    # Flip from short to long
+                    # First record short exit
+                    record_trade('SHORT', entry_price, price, entry_ts, ts)
+                    cash += abs(position) * price  # cover short
+                    # Now open long
+                    position = self.unit_size
+                    cash -= self.unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+
+            # SELL side
+            elif sell_signal.iloc[i] and position_mode in {'both', 'short_only'}:
+                if position == 0:
+                    # Enter new short
+                    position = -self.unit_size
+                    cash += self.unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+                elif position > 0:
+                    # Flip from long to short
+                    record_trade('LONG', entry_price, price, entry_ts, ts)
+                    cash += position * price  # exit long
+                    position = -self.unit_size
+                    cash += self.unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+
+            # Update equity
+            equity = cash + position * price
+            equity_curve.append(equity)
+
+        # FINAL EXIT if still in a position
+        if position != 0 and entry_price is not None and len(df) > 0:
+            final_price = df['Close'].iloc[-1]
+            final_time = df.index[-1]
+            if position > 0:
+                # close long
+                record_trade('LONG', entry_price, final_price, entry_ts, final_time)
+                cash += position * final_price
+            else:
+                # close short
+                record_trade('SHORT', entry_price, final_price, entry_ts, final_time)
+                cash += position * final_price
+
+            position = 0
+            entry_price = None
+            peak_price = None
+
+            # last equity
+            equity_curve[-1] = cash  # override final equity after forced exit
+
+        equity_series = pd.Series(equity_curve, index=df.index)
+        trades_df = pd.DataFrame(trade_log)
+        return equity_series, trades_df
 
     def optimize(self, param_grid):
         signal_keys = {'sma_short_len', 'sma_long_len', 'rsi_len', 'macd_fast', 'macd_slow', 'macd_sig',

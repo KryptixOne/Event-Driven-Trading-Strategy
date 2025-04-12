@@ -24,24 +24,26 @@ def infer_frequency_and_sharpe(equity_curve, risk_free_rate=0.0):
     if len(index) < 2:
         return np.nan
 
-    delta = (index[1] - index[0]).total_seconds()
-    periods_per_year = {
-        60*60: 1640,        # hourly
-        15*60: 6720,        # 15-min
-        24*60*60: 252,      # daily
-    }.get(delta, None)
-
-    if periods_per_year is None:
-        raise ValueError("Unsupported interval.")
+    # Infer average interval in seconds
+    delta_seconds = np.median(np.diff(equity_curve.index).astype("timedelta64[s]").astype(float))
+    periods_per_year = int((365.25 * 24 * 60 * 60) / delta_seconds)
 
     returns = equity_curve.pct_change().dropna()
+    print("Start date:", equity_curve.index[0])
+    print("End date:", equity_curve.index[-1])
+
     return sharpe_ratio(returns, risk_free_rate, periods_per_year)
+
 
 
 def combined_cost_function(equity_curve, weight_sharpe=0.7, weight_return=0.3):
     """
     Cost = weighted combination of Sharpe Ratio and Total Return (Profit)
     """
+    print("Interval (secs):", (equity_curve.index[1] - equity_curve.index[0]).total_seconds())
+    print("Start:", equity_curve.index[0])
+    print("Next:", equity_curve.index[1])
+
     sharpe = infer_frequency_and_sharpe(equity_curve, risk_free_rate=0.0)
 
     total_return = equity_curve.iloc[-1] - equity_curve.iloc[0]
@@ -70,8 +72,9 @@ def plot_strategy_vs_hold(df, equity_curve, initial_cash=100_000):
 
     # Plot
     plt.figure(figsize=(12, 6))
-    plt.plot(df.index, equity_curve, label='Strategy Equity Curve')
-    plt.plot(df.index, buy_hold_curve, label='Buy & Hold', linestyle='--')
+    plt.plot(equity_curve.index, equity_curve, label='Strategy Equity Curve')
+    plt.plot(equity_curve.index, buy_hold_curve.loc[equity_curve.index], label='Buy & Hold', linestyle='--')
+
     plt.title("Strategy vs Buy & Hold")
     plt.ylabel("Portfolio Value ($)")
     plt.xlabel("Time")
@@ -97,7 +100,7 @@ if __name__ == "__main__":
 
     """
 
-    optimizer = StrategyOptimizer(df)
+    optimizer = StrategyOptimizer(df, n_trials=100)
 
     # 2. Set your signal and cost functions
     optimizer.set_signal_function(buy_sell_signals)
