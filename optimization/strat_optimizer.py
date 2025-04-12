@@ -11,6 +11,7 @@ class StrategyOptimizer:
         self.initial_cash = initial_cash
         self.signal_func = None
         self.cost_func = None
+        self.n_trials =1000
 
     def set_signal_function(self, func):
         self.signal_func = func
@@ -162,7 +163,7 @@ class StrategyOptimizer:
 
         return best_params, best_score, best_curve
 
-    def optimize_with_optuna(self, param_bounds, n_trials=1000, direction="maximize"):
+    def optimize_with_optuna(self, param_bounds, direction="maximize"):
         assert self.signal_func is not None, "Signal function not set."
         assert self.cost_func is not None, "Cost function not set."
 
@@ -214,6 +215,6 @@ class StrategyOptimizer:
             return score
 
         study = optuna.create_study(direction=direction)
-        study.optimize(objective, n_trials=n_trials)
+        study.optimize(objective, n_trials=self.n_trials)
 
         return best_params, best_score, best_curve, study
