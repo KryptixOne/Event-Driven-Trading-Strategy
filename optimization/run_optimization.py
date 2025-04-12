@@ -14,8 +14,9 @@ def sharpe_ratio(returns, risk_free_rate=0.0, periods_per_year=1640):
     excess = returns - risk_free_rate
     std = excess.std()
     if std == 0 or np.isnan(std):
-        return np.nan  # or 0.0, depending on what you want
+        return -np.inf  # or 0.0 if you prefer neutral instead of penalizing
     return (excess.mean() / std) * np.sqrt(periods_per_year)
+
 
 
 def infer_frequency_and_sharpe(equity_curve, risk_free_rate=0.0):
@@ -81,7 +82,7 @@ def plot_strategy_vs_hold(df, equity_curve, initial_cash=100_000):
 
 
 if __name__ == "__main__":
-    df = build_df(symbol="TSLA", time_interval="60m", time_period="180d")
+    df = build_df(symbol="TSLA", time_interval="60m", time_period="730d")
     """Interval	Max Lookback Range
         "1m"	~7 days
         "2m"	~60 days

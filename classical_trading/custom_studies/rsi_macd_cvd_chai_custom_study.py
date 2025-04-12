@@ -32,7 +32,7 @@ def exit_signals(df):
     return exitLong, exitShort
 
 
-def buy_sell_signals(df, sma_len=20, rsi_len=14, macd_fast=12, macd_slow=26, macd_sig=9, chaikin_fast=3,
+def buy_sell_signals(df, sma_short_len=20, sma_long_len =50, rsi_len=14, macd_fast=12, macd_slow=26, macd_sig=9, chaikin_fast=3,
                      chaikin_slow=10):
     """
     Generate composite Buy/Sell signals based on multiple indicators:
@@ -46,18 +46,19 @@ def buy_sell_signals(df, sma_len=20, rsi_len=14, macd_fast=12, macd_slow=26, mac
             Each is a boolean pandas Series of length == len(df).
 
     """
-    sma = sma_indicator(df, sma_len)
-    print(f'sma is type{type(sma)}')
+    sma_short = sma_indicator(df, sma_short_len)
+    sma_long = sma_indicator(df, sma_long_len)
     rsi = rsi_indicator(df, rsi_len)
-    print(f'rsi is type{type(rsi)}')
     macd_val, macd_avg = macd_indicator(df, macd_fast, macd_slow, macd_sig)
-    print(f'macd_val and macd_avg is type{type(macd_val)} type{type(macd_avg)}')
     chaikin_val = chaikin_oscillator(df, chaikin_fast, chaikin_slow)
-    print(f'chaikin_val is type{type(chaikin_val)}')
     cumdelta = cumulative_delta_volume(df)
-    print(f'cumdelta is type{type(cumdelta)}')
-    priceAboveSMA = df['Close'] > sma
-    priceBelowSMA = df['Close'] < sma
+
+
+    priceAboveSMAshort = df['Close'] > sma_short
+    priceBelowSMAshort = df['Close'] < sma_short
+    priceAboveSMAlong = df['Close'] > sma_long
+    priceBelowSMAlong = df['Close'] < sma_long
+
     rsiBullish = rsi > 50
     rsiBearish = rsi < 50
     macdBullish = macd_val > macd_avg
@@ -67,60 +68,14 @@ def buy_sell_signals(df, sma_len=20, rsi_len=14, macd_fast=12, macd_slow=26, mac
     cdvBullish = cumdelta > cumdelta.shift(1)
     cdvBearish = cumdelta < cumdelta.shift(1)
 
-    buySignal = priceAboveSMA & macdBullish & rsiBullish & chaikinBullish & cdvBullish
-    sellSignal = priceBelowSMA & macdBearish & rsiBearish & chaikinBearish & cdvBearish
-    return buySignal, sellSignal
+    buySignal = priceAboveSMAshort & priceAboveSMAlong & macdBullish & rsiBullish & chaikinBullish & cdvBullish
+    sellSignal = priceBelowSMAshort & priceBelowSMAlong & macdBearish & rsiBearish & chaikinBearish & cdvBearish
 
+    buySignal = buySignal.astype(bool)
+    sellSignal = sellSignal.astype(bool)
 
+    buy_entry = buySignal & (~buySignal.shift(1).astype(bool).fillna(False))
+    sell_entry = sellSignal & (~sellSignal.shift(1).astype(bool).fillna(False))
 
-def combined_study_signals(df):
-    """
-    This function demonstrates how to combine all indicators and produce
-    the final signals and lines similar to the Thinkorswim study. It:
-      1) Computes each indicator (SMA, RSI, MACD, Chaikin, CDV, VWAP)
-      2) Creates Buy/Sell signals
-      3) Creates Early Reversal signals
-      4) Creates Multi-day floor/ceiling lines
-      5) Creates Exit signals
-
-    Returns:
-        The original DataFrame with extra columns for signals and indicators.
-    """
-
-    df['SMA_20'] = sma_indicator(df, length=20)
-    df['RSI_14'] = rsi_indicator(df, length=14)
-    df['MACD'], df['MACD_Signal'] = macd_indicator(df, fast=12, slow=26, signal=9)
-    df['Chaikin'] = chaikin_oscillator(df, fast=3, slow=10)
-    df['CumDelta'] = cumulative_delta_volume(df)
-    df['VWAP'] = vwap_indicator(df)  # new VWAP column
-
-    # --- Buy/Sell signals
-    buySignal, sellSignal = buy_sell_signals(
-        df,
-        sma_len=20, rsi_len=14,
-        macd_fast=12, macd_slow=26, macd_sig=9,
-        chaikin_fast=3, chaikin_slow=10
-    )
-    df['Buy'] = buySignal
-    df['Sell'] = sellSignal
-
-    # --- Early Reversal signals
-    earlyBullishFlip, earlyBearishFlip = early_reversal_signals(
-        df, sma_len=20, macd_fast=12, macd_slow=26, macd_sig=9
-    )
-    df['EarlyBullFlip'] = earlyBullishFlip
-    df['EarlyBearFlip'] = earlyBearishFlip
-
-    # --- Multi-day Floor/Ceiling
-    floorLine, ceilLine = multi_day_floor_ceiling(df, lookbackDays=5)
-    df['Floor'] = floorLine
-    df['Ceiling'] = ceilLine
-
-    # --- Exit signals
-    exitLong, exitShort = exit_signals(df)
-    df['ExitLong'] = exitLong
-    df['ExitShort'] = exitShort
-
-    return df
-
+    return buy_entry, sell_entry
 

@@ -68,13 +68,13 @@ class StrategyOptimizer:
 
         return pd.Series(equity_curve, index=self.df.index)
 
-    def run_strategy_trailing_stop(self, buy_signal, sell_signal, trailing_stop_pct=None, position_mode: str = 'long_only'):
+    def run_strategy_trailing_stop(self, buy_signal, sell_signal, trailing_stop_pct=None, position_mode: str = 'both'):
         position = 0
         cash = self.initial_cash
         equity_curve = []
         entry_price = None
         peak_price = None  # track high-water mark for trailing stop
-
+        print(position_mode)
         for i in range(len(self.df)):
             price = self.df['Close'].iloc[i]
 
@@ -162,7 +162,7 @@ class StrategyOptimizer:
 
         return best_params, best_score, best_curve
 
-    def optimize_with_optuna(self, param_bounds, n_trials=500, direction="maximize"):
+    def optimize_with_optuna(self, param_bounds, n_trials=1000, direction="maximize"):
         assert self.signal_func is not None, "Signal function not set."
         assert self.cost_func is not None, "Cost function not set."
 
