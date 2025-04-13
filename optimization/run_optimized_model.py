@@ -1,6 +1,6 @@
 from strategy_inference import StrategyInference
 from classical_trading.custom_studies.rsi_macd_cvd_chai_custom_study import buy_sell_signals
-from run_optimization import build_df
+from run_optimization import build_df,infer_frequency_and_sharpe
 from strat_optimizer import StrategyOptimizer
 
 import matplotlib.pyplot as plt
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Create a dummy instance just to grab the method
     dummy = StrategyOptimizer(df)
 
-    best_params = {'sma_short_len': 80, 'sma_long_len': 120, 'rsi_len': 56, 'macd_fast': 8, 'macd_slow': 34, 'macd_sig': 26, 'chaikin_fast': 25, 'chaikin_slow': 46, 'trailing_stop_pct': 0.08326718442424871}
+    best_params = {'sma_short_len': 62, 'sma_long_len': 164, 'rsi_len': 62, 'macd_fast': 8, 'macd_slow': 59, 'macd_sig': 22, 'chaikin_fast': 20, 'chaikin_slow': 9, 'trailing_stop_pct': 0.041965480796475316}
     #score was: 5.383531563496543
     strat = 'run_strategy_trailing_stop'
     sig_fcn = buy_sell_signals
@@ -55,14 +55,15 @@ if __name__ == "__main__":
         df=df,
         best_params=best_params,
         signal_func=sig_fcn,
-        strategy_func=dummy.run_strategy_trailing_stop,
+        strategy_func=dummy.run_strategy_trailing_stop_with_trades,
         unit_size=100,
         initial_cash=100000,
         position_mode='both'  # or 'long_only', 'short_only'
     )
 
-    equity_curve = inference.run()
+    equity_curve,trades = inference.run()
     print(equity_curve)
+    print(infer_frequency_and_sharpe(equity_curve))
     # trades_df has columns ['exit_time','pnl'] with each row a closed trade
     trades_df = trades.sort_values(by='exit_time').reset_index(drop=True)
 

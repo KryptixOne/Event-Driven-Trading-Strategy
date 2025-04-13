@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     """
 
-    optimizer = StrategyOptimizer(df, n_trials=100)
+    optimizer = StrategyOptimizer(df, n_trials=10000)
 
     # 2. Set your signal and cost functions
     optimizer.set_signal_function(buy_sell_signals)
@@ -111,14 +111,14 @@ if __name__ == "__main__":
 
     # 3. Run optimization
     param_bounds = {
-        'sma_short_len': ("int", 10, 90, 10),
-        'sma_long_len': ("int", 20, 200, 20),
-        'rsi_len': ("int", 10, 90, 2),
-        'macd_fast': ("int", 8, 32, 2),
-        'macd_slow': ("int", 20, 64, 2),
-        'macd_sig': ("int", 6, 32, 2),
+        'sma_short_len': ("int", 10, 90, 1),
+        'sma_long_len': ("int", 20, 200, 1),
+        'rsi_len': ("int", 10, 90, 1),
+        'macd_fast': ("int", 8, 32, 1),
+        'macd_slow': ("int", 20, 64, 1),
+        'macd_sig': ("int", 6, 32, 1),
         'chaikin_fast': ("int", 2,64, 1),
-        'chaikin_slow': ("int", 8, 64, 2),
+        'chaikin_slow': ("int", 8, 64, 1),
         #'stop_loss_pct':   ("float", 0.01, 0.05),  # continuous range from 1% to 3%
         #'take_profit_pct': ("float", 0.04, 0.10),
         'trailing_stop_pct': ("float", 0.01, 0.15)
