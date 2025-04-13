@@ -110,7 +110,7 @@ class StrategyOptimizer:
                     entry_price = price
                     peak_price = price
                 elif position < 0:
-                    cash += abs(position) * price
+                    cash -= abs(position) * price
                     position = self.unit_size
                     cash -= self.unit_size * price
                     entry_price = price
@@ -209,7 +209,7 @@ class StrategyOptimizer:
                     # Flip from short to long
                     # First record short exit
                     record_trade('SHORT', entry_price, price, entry_ts, ts)
-                    cash += abs(position) * price  # cover short
+                    cash -= abs(position) * price  # cover short
                     # Now open long
                     position = self.unit_size
                     cash -= self.unit_size * price
