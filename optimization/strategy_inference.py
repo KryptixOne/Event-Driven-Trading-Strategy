@@ -19,28 +19,35 @@ class StrategyInference:
         strategy_params = {k: v for k, v in self.best_params.items() if k in strategy_keys}
 
         buy_signal, sell_signal = self.signal_func(self.df.copy(), **signal_params)
-        trades =None
+
         if self.strategy_func.__name__ == 'run_strategy_trailing_stop':
             equity_curve = self.strategy_func(
                 buy_signal, sell_signal,
                 trailing_stop_pct=strategy_params.get('trailing_stop_pct'),
                 position_mode=self.position_mode
             )
+            return equity_curve
         elif self.strategy_func.__name__ == 'run_strategy_hard_stop_profit_taking':
             equity_curve = self.strategy_func(
                 buy_signal, sell_signal,
                 stop_loss_pct=strategy_params.get('stop_loss_pct'),
                 take_profit_pct=strategy_params.get('take_profit_pct')
             )
-
+            return equity_curve
         elif self.strategy_func.__name__ == 'run_strategy_trailing_stop_with_trades':
             equity_curve, trades = self.strategy_func(
                 buy_signal, sell_signal,
                 trailing_stop_pct=strategy_params.get('trailing_stop_pct'),
                 position_mode=self.position_mode
             )
+            return equity_curve,trades
+        elif self.strategy_func.__name__ == 'run_strategy_with_live_signal_output':
+            equity_curve, trades, live_signals = self.strategy_func(
+                buy_signal, sell_signal,
+                trailing_stop_pct=strategy_params.get('trailing_stop_pct'),
+                position_mode=self.position_mode
+            )
+            return equity_curve, trades,live_signals
         else:
             raise ValueError("Unsupported strategy function.")
-        if trades is not None:
-            return equity_curve, trades
-        return equity_curve
+

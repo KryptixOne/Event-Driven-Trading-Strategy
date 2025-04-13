@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
+from datetime import timedelta
 import plotly.graph_objects as go
-
+from plotly.subplots import make_subplots
 def plot_symbol_and_signals_old(df, show_indicators=False, show_vwap_bands=False):
     """
     Plots the main price series plus the Buy/Sell signals and optionally:
@@ -204,10 +205,6 @@ def plot_interactive(df):
     fig.show()
 
 
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-
 def plot_interactive_with_indicators(df, show_indicators=True, show_vwap_bands=True):
     """
     Plots interactive price chart with Buy/Sell signals, optional indicators and VWAP bands.
@@ -280,5 +277,210 @@ def plot_interactive_with_indicators(df, show_indicators=True, show_vwap_bands=T
         yaxis=dict(autorange=True, fixedrange=False),
         hovermode='x unified'
     )
+
+    fig.show()
+
+
+
+def plot_trades_and_signals(df, trades_df, live_signals_df):
+    fig = go.Figure()
+
+    # Plot price
+    fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name='Price'))
+
+    # Completed trades
+    for _, trade in trades_df.iterrows():
+        color = 'green' if trade['side'] == 'LONG' else 'red'
+        fig.add_trace(go.Scatter(
+            x=[trade['entry_time'], trade['exit_time']],
+            y=[trade['entry_price'], trade['exit_price']],
+            mode='lines+markers',
+            marker=dict(symbol='arrow-bar-up' if trade['side'] == 'LONG' else 'arrow-bar-down', size=10),
+            line=dict(dash='dot', color=color),
+            name=f"{trade['side']} Trade"
+        ))
+
+    # Live signals (including currently open positions)
+    for _, signal in live_signals_df.iterrows():
+        fig.add_trace(go.Scatter(
+            x=[signal['timestamp']],
+            y=[df.loc[signal['timestamp'], 'Close']] if signal['timestamp'] in df.index else [None],
+            mode='markers+text',
+            marker=dict(size=12, color='orange'),
+            text=[signal['signal']],
+            textposition='top center',
+            name='Live Signal'
+        ))
+
+    fig.update_layout(
+        title="Price Chart with Trades and Signals",
+        xaxis=dict(
+            title="Time",
+            tickformat="%b %d\n%H:%M",  # Adaptive: shows date and hour
+            tickangle=0,
+            showgrid=True,
+            ticklabelmode="instant",  # Show labels directly at timestamp
+            ticklabeloverflow="allow",  # Avoid clipping
+            ticklabelstep=1,
+            rangeslider_visible=False,
+            type="date"
+        )
+        ,
+        yaxis_title="Price",
+        legend=dict(x=0.01, y=0.99),
+        height=600
+    )
+
+    shade_after_hours(fig, df)
+
+    fig.show(renderer="browser")
+
+
+def shade_after_hours(fig, df, market_close="19:30:00", next_open="13:30:00"):
+    timestamps = df.index.to_list()
+    for i in range(len(timestamps) - 1):
+        t1 = timestamps[i]
+        t2 = timestamps[i + 1]
+        # If the time is 19:30 (market close), shade until next day 13:30
+        if t1.time().strftime("%H:%M:%S") == market_close:
+            next_day_open = t1 + timedelta(days=1)
+            next_open_dt = pd.Timestamp(f"{next_day_open.date()} {next_open}").tz_localize(t1.tz)
+            fig.add_vrect(
+                x0=t1, x1=next_open_dt,
+                fillcolor="lightgray", opacity=0.2,
+                layer="below", line_width=0
+            )
+
+
+def plot_combined_dashboard(df, trades_df, equity_curve, live_signals_df=None):
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.1,
+        row_heights=[0.6, 0.4],
+        subplot_titles=(
+            "Price Chart with Trades and Signals",
+            "Equity (Left) & Cumulative PnL (Right)"
+        ),
+        specs=[
+            [{}],                       # Row 1: Price chart
+            [{"secondary_y": True}]     # Row 2: Equity & PnL
+        ]
+    )
+
+    # ---- Row 1: Price Chart with Trades ----
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['Close'], mode='lines', name='Price'),
+        row=1, col=1
+    )
+
+    # Completed trades
+    for _, trade in trades_df.iterrows():
+        color = 'green' if trade['side'] == 'LONG' else 'red'
+        fig.add_trace(
+            go.Scatter(
+                x=[trade['entry_time'], trade['exit_time']],
+                y=[trade['entry_price'], trade['exit_price']],
+                mode='lines+markers',
+                marker=dict(
+                    symbol='arrow-bar-up' if trade['side'] == 'LONG' else 'arrow-bar-down',
+                    size=10
+                ),
+                line=dict(dash='dot', color=color),
+                name=f"{trade['side']} Trade"
+            ),
+            row=1, col=1
+        )
+
+    # Live signals
+    if live_signals_df is not None:
+        for _, signal in live_signals_df.iterrows():
+            # Only plot if timestamp in df
+            if signal['timestamp'] in df.index:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[signal['timestamp']],
+                        y=[df.loc[signal['timestamp'], 'Close']],
+                        mode='markers+text',
+                        marker=dict(size=12, color='orange'),
+                        text=[signal['signal']],
+                        textposition='top center',
+                        name='Live Signal'
+                    ),
+                    row=1, col=1
+                )
+
+    # ---- Row 2: Equity (Left Axis) & PnL (Right Axis) ----
+    # Add Equity
+    fig.add_trace(
+        go.Scatter(
+            x=equity_curve.index,
+            y=equity_curve.values,
+            mode='lines',
+            name='Equity Curve',
+            line=dict(color='blue')
+        ),
+        row=2, col=1, secondary_y=False
+    )
+
+    # Add PnL on right axis
+    if not trades_df.empty:
+        # re-sort trades so we can compute cumsum
+        trades_sorted = trades_df.sort_values(by='exit_time').reset_index(drop=True)
+        trades_sorted['cumulative_pnl'] = trades_sorted['pnl'].cumsum()
+
+        fig.add_trace(
+            go.Scatter(
+                x=trades_sorted['exit_time'],
+                y=trades_sorted['cumulative_pnl'],
+                mode='lines+markers',
+                name='Cumulative PnL',
+                line=dict(color='orange', shape='hv'),  # "hv" = horizontal-then-vertical step
+                marker=dict(color='red', size=6)
+            ),
+
+        row=2, col=1, secondary_y=True
+        )
+
+    # ---- Layout ----
+    fig.update_layout(
+        height=800,
+        title="Live Dashboard: Trades, Equity, and PnL",
+        template="plotly_white",
+        legend=dict(x=0.01, y=0.99)
+    )
+
+    # Format axes
+    # Row 1 X-axis
+    fig.update_xaxes(
+        tickformat="%b %d %H:%M",
+        tickangle=45,
+        showgrid=True,
+        rangeslider_visible=False,
+        row=1, col=1
+    )
+    # Row 2 X-axis
+    fig.update_xaxes(
+        tickformat="%b %d %H:%M",
+        tickangle=45,
+        showgrid=True,
+        row=2, col=1
+    )
+
+    # Row 2 left Y-axis (Equity)
+    fig.update_yaxes(
+        title_text="Equity ($)",
+        secondary_y=False,
+        row=2, col=1
+    )
+    # Row 2 right Y-axis (PnL)
+    fig.update_yaxes(
+        title_text="Cumulative PnL ($)",
+        secondary_y=True,
+        row=2, col=1
+    )
+
+    # Row 1 Y-axis
+    fig.update_yaxes(title_text="Price", row=1, col=1)
 
     fig.show()

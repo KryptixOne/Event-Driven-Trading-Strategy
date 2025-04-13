@@ -264,6 +264,128 @@ class StrategyOptimizer:
         trades_df = pd.DataFrame(trade_log)
         return equity_series, trades_df
 
+    import pandas as pd
+
+    def run_strategy_with_live_signal_output(self, buy_signal, sell_signal, trailing_stop_pct=0.08, unit_size=100,
+                                             initial_cash=100000, position_mode='both'):
+        position = 0
+        cash = initial_cash
+        equity_curve = []
+        entry_price = None
+        peak_price = None
+        trade_log = []
+        live_signals = []
+
+        n = min(len(self.df), len(buy_signal), len(sell_signal))
+        df = self.df.iloc[-n:]
+        buy_signal = buy_signal.iloc[-n:]
+        sell_signal = sell_signal.iloc[-n:]
+
+        entry_ts = None
+
+        for i in range(n):
+            ts = df.index[i]
+            price = df['Close'].iloc[i]
+            signal_note = None
+
+            # Trailing stop logic
+            if position != 0 and entry_price is not None and peak_price is not None:
+                if position > 0:
+                    peak_price = max(peak_price, price)
+                    if price <= peak_price * (1 - trailing_stop_pct):
+                        trade_log.append({
+                            'side': 'LONG',
+                            'entry_time': entry_ts,
+                            'entry_price': entry_price,
+                            'exit_time': ts,
+                            'exit_price': price,
+                            'pnl': (price - entry_price)* abs(position)
+                        })
+                        cash += position * price
+                        signal_note = "Exit Long"
+                        position = 0
+                        entry_price = None
+                        peak_price = None
+
+                elif position < 0:
+                    peak_price = min(peak_price, price)
+                    if price >= peak_price * (1 + trailing_stop_pct):
+                        trade_log.append({
+                            'side': 'SHORT',
+                            'entry_time': entry_ts,
+                            'entry_price': entry_price,
+                            'exit_time': ts,
+                            'exit_price': price,
+                            'pnl': (entry_price - price)* abs(position)
+                        })
+                        cash += position * price
+                        signal_note = "Exit Short"
+                        position = 0
+                        entry_price = None
+                        peak_price = None
+
+            # Entry or flip logic
+            if buy_signal.iloc[i] and position_mode in {'both', 'long_only'}:
+                if position == 0:
+                    position = unit_size
+                    cash -= unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+                    signal_note = "Enter Long"
+                elif position < 0:
+                    trade_log.append({
+                        'side': 'SHORT',
+                        'entry_time': entry_ts,
+                        'entry_price': entry_price,
+                        'exit_time': ts,
+                        'exit_price': price,
+                        'pnl': (entry_price - price)* abs(position)
+                    })
+                    cash -= abs(position) * price
+                    position = unit_size
+                    cash -= unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+                    signal_note = "Flip to Long"
+
+            elif sell_signal.iloc[i] and position_mode in {'both', 'short_only'}:
+                if position == 0:
+                    position = -unit_size
+                    cash += unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+                    signal_note = "Enter Short"
+                elif position > 0:
+                    trade_log.append({
+                        'side': 'LONG',
+                        'entry_time': entry_ts,
+                        'entry_price': entry_price,
+                        'exit_time': ts,
+                        'exit_price': price,
+                        'pnl': (price - entry_price)* abs(position)
+                    })
+                    cash += position * price
+                    position = -unit_size
+                    cash += unit_size * price
+                    entry_price = price
+                    peak_price = price
+                    entry_ts = ts
+                    signal_note = "Flip to Short"
+
+            # Update equity
+            equity = cash + position * price
+            equity_curve.append(equity)
+            live_signals.append((ts, signal_note))
+
+        equity_series = pd.Series(equity_curve, index=df.index)
+        trades_df = pd.DataFrame(trade_log)
+        live_signals_df = pd.DataFrame(live_signals, columns=['timestamp', 'signal']).dropna()
+
+        return equity_series, trades_df, live_signals_df
+
     def optimize(self, param_grid):
         signal_keys = {'sma_short_len', 'sma_long_len', 'rsi_len', 'macd_fast', 'macd_slow', 'macd_sig',
                        'chaikin_fast', 'chaikin_slow'}

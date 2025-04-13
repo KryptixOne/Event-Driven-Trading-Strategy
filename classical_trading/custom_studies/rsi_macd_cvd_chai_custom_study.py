@@ -85,10 +85,9 @@ def buy_sell_signals(df, sma_short_len=20, sma_long_len =50, rsi_len=14, macd_fa
 
     buySignal = buySignal.astype(bool)
     sellSignal = sellSignal.astype(bool)
-
     # 1) detect new signals
-    buy_entry_raw = buySignal & ~buySignal.shift(1).fillna(False)
-    sell_entry_raw = sellSignal & ~sellSignal.shift(1).fillna(False)
+    buy_entry_raw = buySignal & ~buySignal.shift(1).fillna(False).astype(bool)
+    sell_entry_raw = sellSignal & ~sellSignal.shift(1).fillna(False).astype(bool)
 
     # 2) shift for next-bar
     buy_entry = buy_entry_raw.shift(1).fillna(False).astype(bool)

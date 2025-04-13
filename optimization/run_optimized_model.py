@@ -60,16 +60,21 @@ if __name__ == "__main__":
         initial_cash=100000,
         position_mode='both'  # or 'long_only', 'short_only'
     )
+    import pandas as pd
+
+    pd.set_option('display.width', None)
+    pd.set_option('display.max_colwidth', None)
 
     equity_curve,trades = inference.run()
     print(equity_curve)
     print(infer_frequency_and_sharpe(equity_curve))
+    print(trades)
     # trades_df has columns ['exit_time','pnl'] with each row a closed trade
     trades_df = trades.sort_values(by='exit_time').reset_index(drop=True)
 
     # cumulative PnL
     trades_df['cumulative_pnl'] = trades_df['pnl'].cumsum()
-
+    print(trades_df)
     # convert to a time-indexed Series
     pnl_series = (
         trades_df.set_index('exit_time')['cumulative_pnl']

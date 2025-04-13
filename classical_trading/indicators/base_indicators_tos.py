@@ -74,7 +74,6 @@ def chaikin_oscillator(df, fast=3, slow=10):
             A pandas Series of Chaikin Oscillator values.
 
     """
-    # Money Flow Multiplier
     high_low = df['High'] - df['Low']
     mf_multiplier = np.where(
         high_low != 0,
@@ -114,7 +113,7 @@ def cumulative_delta_volume(df):
     bullish = df['Open'] <= df['Close']
     numerator = 0.5 * (tw + bw + 2 * body * bullish.astype(float))
     rate = numerator / denom.replace(0, np.nan)
-    rate = rate.fillna(0.5)  # as in TOS fallback
+    rate = rate.fillna(0.5)
 
     deltaup = df['Volume'] * rate
     deltadown = df['Volume'] * (1 - rate)
