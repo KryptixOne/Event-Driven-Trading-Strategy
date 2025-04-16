@@ -483,4 +483,5 @@ def plot_combined_dashboard(df, trades_df, equity_curve, live_signals_df=None):
     # Row 1 Y-axis
     fig.update_yaxes(title_text="Price", row=1, col=1)
 
-    fig.show()
+    #fig.show()
+    return fig

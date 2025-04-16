@@ -6,7 +6,9 @@ from optimization.strategy_inference import StrategyInference
 from classical_trading.custom_studies.rsi_macd_cvd_chai_custom_study import buy_sell_signals
 from optimization.strat_optimizer import StrategyOptimizer
 from backtesting.plotting.plot_fcn import plot_combined_dashboard
-
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
 
 pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', None)
@@ -23,11 +25,12 @@ best_params = {
     'trailing_stop_pct': 0.041965480796475316
 }
 
+global_df = None
+global_trades = None
+global_equity_curve = None
+global_live_signals = None
 
 def build_df_live(symbol="TSLA", interval="60m", lookback_days="169d"):
-    """
-    Download the last 'lookback_days' of data at 'interval' from Yahoo Finance.
-    """
     print(f"Fetching {symbol} at {interval} for {lookback_days} ...")
     df = yf.download(
         tickers=symbol,
@@ -36,20 +39,18 @@ def build_df_live(symbol="TSLA", interval="60m", lookback_days="169d"):
         auto_adjust=True,
         progress=False,
     )
-    # Ensure the DataFrame has the needed columns in correct shape
     df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
     df.columns = df.columns.get_level_values(0)
     df['Buy'], df['Sell'] = buy_sell_signals(df)
     return df
 
-
 def run_hourly(symbol="TSLA"):
     """
-    This function:
-      1) Fetches data from Yahoo
-      2) Runs the strategy inference
-      3) Logs or alerts if there's a new Buy or Sell signal
+    Called by the Dash callback to refresh data & strategy outputs.
+    Updates global variables so the Dash chart can use them.
     """
+    global global_df, global_trades, global_equity_curve, global_live_signals
+
     df = build_df_live(symbol, interval="60m", lookback_days="730d")
     dummy = StrategyOptimizer(df)
 
@@ -65,51 +66,44 @@ def run_hourly(symbol="TSLA"):
 
     equity_curve, trades, live_signals = inference.run()
 
-    # Check the last row of trades to see if a new trade triggered
+    global_df = df
+    global_trades = trades
+    global_equity_curve = equity_curve
+    global_live_signals = live_signals
+
+    print(f"Strategy updated at {datetime.datetime.now()} - final equity: {equity_curve.iloc[-1]:.2f}")
     if not trades.empty:
-        last_trade = trades.iloc[-1]
-        print("Most recent trade:")
-        print(last_trade)
-        # You could add logic: if last_trade['exit_time'] == last bar => alert
-    else:
-        print("No trades so far.")
-
+        print("Recent trade:", trades.iloc[-1])
     if not live_signals.empty:
-        print(f"Most recent signal was {live_signals.iloc[-1]}")
-
-    # Optionally, detect if a new buy or sell happened on the final bar
-    # (this is simpler if we record the final posState too, but for now we rely on trades)
-
-    # Basic logging:
-    print(f"Equity final: {equity_curve.iloc[-1]:.2f}")
-    # Could do more advanced logic to e.g. email or Slack alert
-    print(trades)
-    plot_combined_dashboard(
-        df=df, trades_df=trades, equity_curve=equity_curve, live_signals_df=live_signals)
+        print("Live signals:", live_signals)
 
 
-def main_live_loop():
-    """
-    Main loop that runs once every hour (e.g. at minute 30).
-    In real usage, you'd run this script continuously.
-    """
-    while True:
-        now = datetime.datetime.now()
-        # e.g. run at HH:35 (to ensure the 1-hour bar is closed)
-        # or run at the top of hour if your data is posted quickly
-        if now.minute == 35:
-            print(f"Running strategy at {now}")
-            run_hourly(symbol="TSLA")
-            print("Sleeping until next hour...\n")
-            time.sleep(60)  # to avoid repeated run in the same minute
-        else:
-            # Sleep for e.g. 30 seconds
-            time.sleep(30)
+# ============ 3) Create a Dash app for a single-tab browser ============
+
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    html.Button("Refresh Now", id="manual-refresh-btn", n_clicks=0),
+    dcc.Graph(id="dashboard-graph"),
+    dcc.Interval(id="update-interval", interval=5*60*1000, n_intervals=0)
+])
+
+@app.callback(
+    Output("dashboard-graph", "figure"),
+    [Input("update-interval", "n_intervals"),
+     Input("manual-refresh-btn", "n_clicks")]
+)
+def update_figure(n_intervals, n_clicks):
+    run_hourly("TSLA")
+    fig = plot_combined_dashboard(
+        df=global_df,
+        trades_df=global_trades,
+        equity_curve=global_equity_curve,
+        live_signals_df=global_live_signals
+    )
+    return fig
 
 
 if __name__ == "__main__":
-    # Option 1: Just run once
-    run_hourly("TSLA")
-
-    # Option 2: Loop forever
-    # main_live_loop()
+    # Run Dash server in a single tab/window
+    app.run(debug=True)
