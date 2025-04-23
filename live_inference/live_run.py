@@ -7,8 +7,12 @@ from classical_trading.custom_studies.rsi_macd_cvd_chai_custom_study import buy_
 from optimization.strat_optimizer import StrategyOptimizer
 from backtesting.plotting.plot_fcn import plot_combined_dashboard
 import dash
-from dash import dcc, html
+from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output
+
+import io
+import contextlib
+
 
 pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', None)
@@ -82,28 +86,81 @@ def run_hourly(symbol="TSLA"):
 
 app = dash.Dash(__name__)
 
+# 1) Add a <pre> to your layout for logs:
 app.layout = html.Div([
     html.Button("Refresh Now", id="manual-refresh-btn", n_clicks=0),
     dcc.Graph(id="dashboard-graph"),
+    html.Div(id="log-output"),
     dcc.Interval(id="update-interval", interval=5*60*1000, n_intervals=0)
 ])
 
+# 2) Helper to capture prints:
+@contextlib.contextmanager
+def capture_stdout():
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        yield buf
 @app.callback(
-    Output("dashboard-graph", "figure"),
+    [Output("dashboard-graph", "figure"),
+     Output("log-output", "children")],
     [Input("update-interval", "n_intervals"),
      Input("manual-refresh-btn", "n_clicks")]
 )
 def update_figure(n_intervals, n_clicks):
+    # refresh data & strategy
     run_hourly("TSLA")
+
+    # 1) Summary line
+    summary = html.Div(
+        f"Strategy updated at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} – "
+        f"final equity: {global_equity_curve.iloc[-1]:.2f}"
+    )
+
+    # 2) Recent trade
+    if not global_trades.empty:
+        recent = global_trades.iloc[[-1]].reset_index(drop=True)
+        recent_div = dash_table.DataTable(
+            columns=[{"name": c, "id": c} for c in recent.columns],
+            data=recent.to_dict("records"),
+            style_table={"overflowX": "auto"},
+            style_cell={"textAlign": "left"}
+        )
+    else:
+        recent_div = html.Div("No trades yet.")
+
+    # 3) Live signals
+    if not global_live_signals.empty:
+        recent_signals = global_live_signals.sort_values(by="timestamp", ascending=False)
+
+        signals_div = dash_table.DataTable(
+            columns=[{"name": c, "id": c} for c in recent_signals.columns],
+            data=recent_signals.to_dict("records"),
+            page_size=10,
+            style_table={
+                "overflowX": "auto",
+                "maxHeight": "300px",
+                "overflowY": "auto"
+            },
+            style_cell={"textAlign": "left", "whiteSpace": "nowrap"}
+        )
+    else:
+        signals_div = html.Div("No live signals.")
+
+    # 4) Plot
     fig = plot_combined_dashboard(
         df=global_df,
         trades_df=global_trades,
         equity_curve=global_equity_curve,
         live_signals_df=global_live_signals
     )
-    return fig
 
-
+    return fig, [
+        summary,
+        html.H4("Recent Trade"),
+        recent_div,
+        html.H4("Live Signals"),
+        signals_div
+    ]
 if __name__ == "__main__":
     # Run Dash server in a single tab/window
     app.run(debug=True)
