@@ -16,7 +16,7 @@ import contextlib
 
 pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', None)
-# Example best_params:
+
 best_params = {
     'sma_short_len': 62,
     'sma_long_len': 164,
@@ -49,13 +49,13 @@ def build_df_live(symbol="TSLA", interval="60m", lookback_days="169d"):
     return df
 
 def run_hourly(symbol="TSLA"):
-    """
-    Called by the Dash callback to refresh data & strategy outputs.
-    Updates global variables so the Dash chart can use them.
-    """
     global global_df, global_trades, global_equity_curve, global_live_signals
 
     df = build_df_live(symbol, interval="60m", lookback_days="730d")
+    if df.empty:
+        print(f"No data returned for symbol: {symbol}")
+        global_df = global_trades = global_equity_curve = global_live_signals = pd.DataFrame()
+        return
     dummy = StrategyOptimizer(df)
 
     inference = StrategyInference(
@@ -86,8 +86,24 @@ def run_hourly(symbol="TSLA"):
 
 app = dash.Dash(__name__)
 
-# 1) Add a <pre> to your layout for logs:
 app.layout = html.Div([
+    html.Div([
+        html.Label("Select Symbol (or enter custom):"),
+        dcc.Dropdown(
+            id="preset-dropdown",
+            options=[{"label": sym, "value": sym} for sym in ["TSLA", "AAPL", "MSFT", "GOOG"]],
+            value="TSLA",
+            clearable=True,
+            style={"width": "200px"}
+        ),
+        dcc.Input(
+            id="custom-symbol-input",
+            type="text",
+            placeholder="Or type custom symbol...",
+            style={"width": "200px", "marginLeft": "10px"}
+        )
+    ], style={"marginBottom": "10px"}),
+
     html.Button("Refresh Now", id="manual-refresh-btn", n_clicks=0),
     dcc.Graph(id="dashboard-graph"),
     html.Div(id="log-output"),
@@ -100,20 +116,27 @@ def capture_stdout():
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         yield buf
+
 @app.callback(
     [Output("dashboard-graph", "figure"),
      Output("log-output", "children")],
     [Input("update-interval", "n_intervals"),
-     Input("manual-refresh-btn", "n_clicks")]
+     Input("manual-refresh-btn", "n_clicks"),
+     Input("preset-dropdown", "value"),
+     Input("custom-symbol-input", "value")]
 )
-def update_figure(n_intervals, n_clicks):
-    # refresh data & strategy
-    run_hourly("TSLA")
+def update_figure(n_intervals, n_clicks, preset_symbol, custom_symbol):
+    symbol = custom_symbol.strip().upper() if custom_symbol else preset_symbol or "TSLA"
+    run_hourly(symbol)
 
-    # 1) Summary line
+    if global_equity_curve is not None and not global_equity_curve.empty:
+        final_equity = f"{global_equity_curve.iloc[-1]:.2f}"
+    else:
+        final_equity = "N/A"
+
     summary = html.Div(
-        f"Strategy updated at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} – "
-        f"final equity: {global_equity_curve.iloc[-1]:.2f}"
+        f"Strategy update d at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} – "
+        f"final equity: {final_equity}"
     )
 
     # 2) Recent trade
